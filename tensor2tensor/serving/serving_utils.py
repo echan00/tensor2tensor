@@ -146,7 +146,8 @@ def make_cloud_mlengine_request_fn(credentials, model_name, version):
 def predict(inputs_list, problem, request_fn):
   """Encodes inputs, makes request to deployed TF model, and decodes outputs."""
   assert isinstance(inputs_list, list)
-  fname = "inputs" if problem.has_inputs else "targets"
+  #fname = "inputs" if problem.has_inputs else "targets"
+  fname = "targets"
   input_encoder = problem.feature_info[fname].encoder
   input_ids_list = [
       _encode(inputs, input_encoder, add_eos=problem.has_inputs)
@@ -155,7 +156,8 @@ def predict(inputs_list, problem, request_fn):
   examples = [_make_example(input_ids, problem, fname)
               for input_ids in input_ids_list]
   predictions = request_fn(examples)
-  output_decoder = problem.feature_info["targets"].encoder
+  #output_decoder = problem.feature_info["targets"].encoder
+  output_decoder = problem.feature_info["inputs"].encoder
   outputs = [
       (_decode(prediction["outputs"], output_decoder),
        prediction["scores"])

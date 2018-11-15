@@ -9,7 +9,8 @@ from tensor2tensor.serving import query
 import tensorflow as tf
 
 def main(argv):
-  query.main(argv)
+  result = query.main(argv)
+  return result
 
 
 if __name__ == "__main__":

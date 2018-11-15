@@ -98,7 +98,7 @@ Output (Score {score:.3f}):
     """
     print(print_str.format(inputs=inputs, output=output, score=score))
     if FLAGS.inputs_once:
-      break
+      return output
 
 
 if __name__ == "__main__":
