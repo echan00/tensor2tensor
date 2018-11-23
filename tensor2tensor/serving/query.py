@@ -1,3 +1,4 @@
+
 # coding=utf-8
 # Copyright 2018 The Tensor2Tensor Authors.
 #
@@ -18,7 +19,9 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import os
+import os, sys, glob
+from multiprocessing import Pool
+number_of_workers = 8
 
 from oauth2client.client import GoogleCredentials
 from six.moves import input  # pylint: disable=redefined-builtin
@@ -39,6 +42,8 @@ flags.DEFINE_string("data_dir", None, "Data directory, for vocab files.")
 flags.DEFINE_string("t2t_usr_dir", None, "Usr dir for registrations.")
 flags.DEFINE_string("inputs_once", None, "Query once with this input.")
 flags.DEFINE_integer("timeout_secs", 10, "Timeout for query.")
+flags.DEFINE_integer("TFX", 0, "Translate all files in directory for TFX.")
+flags.DEFINE_string("subdir", None, "dir_001")
 
 # For Cloud ML Engine predictions.
 flags.DEFINE_string("cloud_mlengine_model_name", None,
@@ -48,11 +53,13 @@ flags.DEFINE_string(
     "Version of the model to use. If None, requests will be "
     "sent to the default version.")
 
-
 def validate_flags():
   """Validates flags are set to acceptable values."""
   if FLAGS.cloud_mlengine_model_name:
     assert not FLAGS.server
+    assert not FLAGS.servable_name
+  else:
+    assert FLAGS.server
     assert not FLAGS.servable_name
   else:
     assert FLAGS.server
@@ -67,13 +74,35 @@ def make_request_fn():
         model_name=FLAGS.cloud_mlengine_model_name,
         version=FLAGS.cloud_mlengine_model_version)
   else:
-
     request_fn = serving_utils.make_grpc_request_fn(
         servable_name=FLAGS.servable_name,
         server=FLAGS.server,
         timeout_secs=FLAGS.timeout_secs)
   return request_fn
 
+def convert_file(file):
+  problem = registry.problem(FLAGS.problem)
+  hparams = tf.contrib.training.HParams(
+      data_dir=os.path.expanduser(FLAGS.data_dir))
+  problem.get_hparams(hparams)
+  if os.path.isfile("/root/T2T_Model/4b_zh-tokenized-sample-en/"+file):
+    print(file+" exists already")
+  else:
+    with open("/root/T2T_Model/4b_zh-tokenized-sample-en/"+file, 'w+') as new_file:
+      with open("./"+file, 'r') as lines:
+        for inputs in lines:
+          try:
+            inputs = inputs.replace('\n','')
+            print(inputs)
+            outputs = serving_utils.predict([inputs], problem, make_request_fn())
+            outputs, = outputs
+            output, score = outputs
+            new_file.write(output+'\n')
+            print(output+'\n')
+          except Exception as error:
+            print("error: "+str(error))
+      new_file.close()
+      print(file)
 
 def main(_):
   tf.logging.set_verbosity(tf.logging.INFO)
@@ -83,22 +112,32 @@ def main(_):
   hparams = tf.contrib.training.HParams(
       data_dir=os.path.expanduser(FLAGS.data_dir))
   problem.get_hparams(hparams)
-  request_fn = make_request_fn()
-  while True:
-    inputs = FLAGS.inputs_once if FLAGS.inputs_once else input(">> ")
-    outputs = serving_utils.predict([inputs], problem, request_fn)
-    outputs, = outputs
-    output, score = outputs
-    print_str = """
-Input:
-{inputs}
 
-Output (Score {score:.3f}):
-{output}
-    """
-    print(print_str.format(inputs=inputs, output=output, score=score))
-    if FLAGS.inputs_once:
-      return output
+  if FLAGS.TFX == 1:
+    os.chdir("./4a_zh-tokenized-converted/"+FLAGS.subdir)
+    files = []
+    for file in glob.glob("*.txt"):
+      files.append(file)
+    mypool = Pool(number_of_workers)
+    mypool.map(convert_file, files)
+    cmd = "curl -X POST -H 'Content-type: application/json' --data '{\"text\":'"+str(FLAGS.subdir)+"'}' https://hooks.slack.com/services/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"
+    os.system(cmd)
+  else:
+    while True:
+      inputs = FLAGS.inputs_once if FLAGS.inputs_once else input(">> ")
+      outputs = serving_utils.predict([inputs], problem, make_request_fn())
+      outputs, = outputs
+      output, score = outputs
+      print_str = """
+  Input:
+  {inputs}
+
+  Output (Score {score:.3f}):
+  {output}
+      """
+      print(print_str.format(inputs=inputs, output=output, score=score))
+      if FLAGS.inputs_once:
+        break
 
 
 if __name__ == "__main__":

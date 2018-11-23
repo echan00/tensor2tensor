@@ -10,6 +10,7 @@ import tensorflow as tf
 
 def main(argv):
   result = query.main(argv)
+  print(result)
   return result
 
 
