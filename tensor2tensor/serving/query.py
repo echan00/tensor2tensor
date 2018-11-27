@@ -60,9 +60,6 @@ def validate_flags():
     assert not FLAGS.servable_name
   else:
     assert FLAGS.server
-    assert not FLAGS.servable_name
-  else:
-    assert FLAGS.server
     assert FLAGS.servable_name
 
 
@@ -74,11 +71,13 @@ def make_request_fn():
         model_name=FLAGS.cloud_mlengine_model_name,
         version=FLAGS.cloud_mlengine_model_version)
   else:
+
     request_fn = serving_utils.make_grpc_request_fn(
         servable_name=FLAGS.servable_name,
         server=FLAGS.server,
         timeout_secs=FLAGS.timeout_secs)
   return request_fn
+
 
 def convert_file(file):
   problem = registry.problem(FLAGS.problem)
@@ -102,7 +101,7 @@ def convert_file(file):
           except Exception as error:
             print("error: "+str(error))
       new_file.close()
-      print(file)
+    print(file)
 
 def main(_):
   tf.logging.set_verbosity(tf.logging.INFO)
@@ -143,3 +142,4 @@ def main(_):
 if __name__ == "__main__":
   flags.mark_flags_as_required(["problem", "data_dir"])
   tf.app.run()
+
