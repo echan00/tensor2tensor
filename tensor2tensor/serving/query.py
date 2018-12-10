@@ -20,8 +20,9 @@ from __future__ import division
 from __future__ import print_function
 
 import os, sys, glob
+import requests
 from multiprocessing import Pool
-number_of_workers = 8
+number_of_workers = 1
 
 from oauth2client.client import GoogleCredentials
 from six.moves import input  # pylint: disable=redefined-builtin
@@ -43,6 +44,7 @@ flags.DEFINE_string("t2t_usr_dir", None, "Usr dir for registrations.")
 flags.DEFINE_string("inputs_once", None, "Query once with this input.")
 flags.DEFINE_integer("timeout_secs", 10, "Timeout for query.")
 flags.DEFINE_integer("TFX", 0, "Translate all files in directory for TFX.")
+flags.DEFINE_integer("bleualign_upload", 0, "Align and upload files to s3")
 flags.DEFINE_string("subdir", None, "dir_001")
 
 # For Cloud ML Engine predictions.
@@ -78,7 +80,6 @@ def make_request_fn():
         timeout_secs=FLAGS.timeout_secs)
   return request_fn
 
-
 def convert_file(file):
   problem = registry.problem(FLAGS.problem)
   hparams = tf.contrib.training.HParams(
@@ -103,6 +104,14 @@ def convert_file(file):
       new_file.close()
     print(file)
 
+def job(file):
+    """Wraps any exception that occurs with FailedJob so we can identify which job failed 
+    and why""" 
+    try:
+        return convert_file(file)
+    except BaseException as ex:
+        raise FailedJob(file) from ex
+
 def main(_):
   tf.logging.set_verbosity(tf.logging.INFO)
   validate_flags()
@@ -117,10 +126,58 @@ def main(_):
     files = []
     for file in glob.glob("*.txt"):
       files.append(file)
-    mypool = Pool(number_of_workers)
-    mypool.map(convert_file, files)
-    cmd = "curl -X POST -H 'Content-type: application/json' --data '{\"text\":'"+str(FLAGS.subdir)+"'}' https://hooks.slack.com/services/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"
-    os.system(cmd)
+
+    chunksize = 30  # number of jobs before dispatch
+    with Pool(number_of_workers) as pool:
+        # we use imap_unordered as we don't care about order, we want the result of the 
+        # jobs as soon as they are done
+        iter_ = pool.imap_unordered(job, files)
+        while True:
+            completed = []
+            while len(completed) < chunksize:
+                # collect results from iterator until we reach the dispatch threshold
+                # or until all jobs have been completed
+                try:
+                    result = next(iter_)
+                except StopIteration:
+                    print('all child jobs completed')
+                    # only break out of inner loop, might still be some completed
+                    # jobs to dispatch
+                    break
+                except FailedJob as ex:
+                    print('processing of {} job failed'.format(ex.args[0]))
+                else:
+                    completed.append(result)
+
+            if completed:
+                print('completed:', completed)
+                if FLAGS.bleualign_upload == 1:
+                  for file in completed:
+                    with open("./"+file, errors='ignore') as infile, open("./temp.txt", 'w') as outfile:
+                      for line in infile:
+                        if not line.strip(): continue  # skip the empty line
+                        outfile.write(line)  # non-empty line. Write it to output
+                    copyfile("./temp.txt", "./"+file) 
+                    os.remove("./temp.txt")
+
+                  # run bleualign
+                  cmd = "pypy3 '../bleualign/bleualign.py' -v 0 -f sentences --filterthreshold 95 --bleuthreshold 0.10 -s '../4a_zh-tokenized-converted/"+file+"' -t '../3_en-tokenized/"+file+"' --srctotarget './"+file+"' -o '../5_aligned-zh/"+file+"'"
+                  os.system(cmd)
+
+                  # upload to s3
+                  cmd = "aws s3 sync ../5_aligned-zh s3://nda-ai/v1_data/5_aligned-zh"
+                  os.system(cmd)
+
+            if len(completed) < chunksize:
+                print('all jobs completed and all job completion notifications'
+                   ' dispatched to central server')
+                return
+
+    # notify 'erik' on slack when done
+    headers = {'Content-type': 'application/json'}
+    data = '{"SERVER DONE: ":"'+str(FLAGS.subdir)+'"}'
+    response = requests.post('https://hooks.slack.com/services/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', headers=headers, data=data)
+
   else:
     while True:
       inputs = FLAGS.inputs_once if FLAGS.inputs_once else input(">> ")
