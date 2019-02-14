@@ -31,6 +31,7 @@ from itertools import chain, islice
 
 from oauth2client.client import GoogleCredentials
 from six.moves import input  # pylint: disable=redefined-builtin
+from time import sleep
 
 from tensor2tensor import problems as problems_lib  # pylint: disable=unused-import
 from tensor2tensor.serving import serving_utils
@@ -117,13 +118,13 @@ def convert_file(file):
           for inputs in lines:
             try:
               inputs = ftfy.fix_text(inputs.replace('\n','')).encode('utf-8')
-              #print(inputs)
+              print(inputs)
               outputs = serving_utils.predict([inputs], problem, make_request_fn())
               outputs, = outputs
               output, score = outputs
               new_file1.write(inputs+'\n')
               new_file.write(output+'\n')
-              #print(output+'\n')
+              print(output+'\n')
             except Exception as error:
               print("error: "+str(error))
               print("error input: "+inputs)
@@ -173,6 +174,7 @@ def main(_):
                 break
             except FailedJob as ex:
                 print('processing of {} job failed'.format(ex.args[0]))
+                sleep(300)
                 headers = {'Content-type': 'application/json'}
                 data = '{"SERVER ERROR: ":"'+str(FLAGS.subdir)+'-'+str(ex.args[0])+'"}'
                 response = requests.post(slack_hook, headers=headers, data=data)
