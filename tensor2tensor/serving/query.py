@@ -112,24 +112,23 @@ def convert_file(file):
     return None
   else:
     print(file)
-    with codecs.open(T2T_Model_Path+"/4a_zh-tokenized-converted/"+file, mode='w+') as new_file1:
-      with codecs.open(T2T_Model_Path+"/4b_zh-tokenized-sample-en/"+file, mode='w+') as new_file:
-        with codecs.open("./"+file, mode='r', encoding='utf-8', errors='ignore') as lines:
-          for inputs in lines:
-            try:
-              inputs = ftfy.fix_text(inputs.replace('\n','')).encode('utf-8')
-              print(inputs)
-              outputs = serving_utils.predict([inputs], problem, make_request_fn())
-              outputs, = outputs
-              output, score = outputs
-              new_file1.write(inputs+'\n')
-              new_file.write(output+'\n')
-              print(output+'\n')
-            except Exception as error:
-              print("error: "+str(error))
-              print("error input: "+inputs)
-              print("error output: "+output)
-        new_file.close()    
+    with codecs.open(T2T_Model_Path+"/4b_zh-tokenized-sample-en/"+file, mode='w+', encoding='utf-8') as new_file:
+      with codecs.open("./"+file, mode='r', encoding='utf-8') as lines:
+        for inputs in lines:
+          try:
+            print(inputs)
+            inputs = ftfy.fix_text(inputs.replace('\n','')).encode('utf-8')            
+            output = "1"
+            outputs = serving_utils.predict([inputs], problem, make_request_fn())
+            outputs, = outputs
+            output, score = outputs
+            new_file.write(output+'\n')
+            print(output+'\n')
+          except Exception as error:
+            print("error: "+str(error))
+            print("error input: "+inputs)
+            print("error output: "+output)
+      new_file.close()       
     return file
 
 def job(file):
@@ -185,7 +184,7 @@ def main(_):
             print('completed:', completed)
             if FLAGS.bleualign_upload == 1:
               for file in filter(None, completed):
-                with codecs.open(T2T_Model_Path+"/4b_zh-tokenized-sample-en/"+file, encoding='utf-8', errors='ignore') as infile, codecs.open("/root/T2T_Model/temp"+FLAGS.subdir+".txt", encoding='utf-8', mode='w') as outfile:
+                with codecs.open(T2T_Model_Path+"/4b_zh-tokenized-sample-en/"+file, mode="r", encoding='utf-8') as infile, codecs.open("/root/T2T_Model/temp"+FLAGS.subdir+".txt", mode="w", encoding='utf-8') as outfile:
                   for line in infile:
                     if not line.strip(): continue  # skip the empty line
                     outfile.write(line)  # non-empty line. Write it to output
@@ -200,10 +199,10 @@ def main(_):
                 completed_files.append(T2T_Model_Path+"/5_aligned-zh/"+file[0:-4]+".txt-s")
                 completed_files.append(T2T_Model_Path+"/5_aligned-zh/"+file[0:-4]+".txt-t")                
                 for file_large in completed_files: 
-                  with open(file_large) as bigfile:
+                  with codecs.open(file_large, mode="r", encoding='utf-8') as bigfile:
                     for i, lines in enumerate(chunks(bigfile, max_lines)):
                       file_split = '{}_{}.{}'.format(file_large.split('.')[0], i, file_large.split('.')[1])
-                      with open(file_split, 'w') as f:
+                      with codecs.open(file_split, mode="w", encoding='utf-8') as f:
                         f.writelines(lines)
                   os.remove(file_large)
 

@@ -1,9 +1,9 @@
 
-# split folder of files into multiple folders
+# split folder of files into multiple folders for current folder (use on '4a_zh-tokenized-converted' folder)
 i=0; 
 for f in *; 
 do 
-    d=dir_$(printf %03d $((i/700+1))); 
+    d=dir_$(printf %03d $((i/1600+1))); 
     mkdir -p $d; 
     mv "$f" $d; 
     let i++; 
@@ -33,7 +33,7 @@ check process tensorflow_mode
 
 4) add to /script/start.sh
 #!/bin/bash
-docker run --runtime=nvidia -e NVIDIA_VISIBLE_DEVICES=6 -p 8560:8500 \
+docker run --runtime=nvidia -e NVIDIA_VISIBLE_DEVICES=6 -p 8560:8560 \
   --mount type=bind,source=/home/eee/T2T_Model/t2t_train/translate_enzh_wmt32k/transformer-transformer_base/export/,target=/models/my_model \
   --mount type=bind,source=/home/eee/T2T_Model/batching.conf,target=/models/batching.conf \
   -e MODEL_NAME=my_model -t tensorflow/serving:latest-gpu --batching_parameters_file=/models/batching.conf --enable_batching

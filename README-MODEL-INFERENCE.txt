@@ -51,6 +51,12 @@ docker run --runtime=nvidia -e NVIDIA_VISIBLE_DEVICES=0 -p 8500:8500 \
   --mount type=bind,source=/home/eee/T2T_Model/batching.conf,target=/models/batching.conf \
   -e MODEL_NAME=my_model -t tensorflow/serving:latest-gpu --batching_parameters_file=/models/batching.conf --enable_batching
 
+# 8510 is the port to connect to and 8500 is the port inside docker container
+docker run --runtime=nvidia -e NVIDIA_VISIBLE_DEVICES=1 -p 8510:8500 \
+  --mount type=bind,source=/home/eee/T2T_Model/t2t_train/translate_enzh_wmt32k/transformer-transformer_base/export/,target=/models/my_model \
+  --mount type=bind,source=/home/eee/T2T_Model/batching.conf,target=/models/batching.conf \
+  -e MODEL_NAME=my_model -t tensorflow/serving:latest-gpu --batching_parameters_file=/models/batching.conf --enable_batching
+
 ## batching.conf parameters
 max_batch_size { value: 1000 }
 batch_timeout_micros { value: 0 }
@@ -61,13 +67,13 @@ max_enqueued_batches { value: 1000 }
 
 # TO QUERY MODEL
 t2t-query-server \
-  --server=0.0.0.0:8500 \
+  --server=0.0.0.0:8510 \
   --servable_name=my_model \
   --problem=translate_enzh_wmt32k \
-  --data_dir=/root/T2T_Model/t2t_data \
-  --timeout_secs=30 \
+  --data_dir=/home/eee/T2T_Model/t2t_data \
+  --timeout_secs=60 \
   --TFX=1 \
-  --subdir='redo/dir_024' \
+  --subdir='dir_002' \
   --inputs_once=你好 \
   --bleualign_upload=0
 
